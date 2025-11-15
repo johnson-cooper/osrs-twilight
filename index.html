@@ -1,0 +1,1140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <title>OSRS-TWILIGHT - Group Ironman Planner</title>
+  <link rel="icon" href="favicon.png" type="image/png">
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Standard Meta -->
+<meta name="description" content="OSRS Group Ironman Planner — track members, tasks, goals, and more">
+<meta name="author" content="osrs-twilight">
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="OSRS Group Ironman Planner">
+<meta property="og:description" content="Manage your group's Ironman tasks, goals, and progress easily.">
+<meta property="og:image" content="jad.png">
+
+<!-- Twitter -->
+<meta property="twitter:card" content="summary_large_image">
+<meta property="twitter:title" content="OSRS Group Ironman Planner">
+<meta property="twitter:description" content="Manage your group's Ironman tasks, goals, and progress easily.">
+<meta property="twitter:image" content="jad.png">
+  <style>
+    body { background: #0b0b0b; color: #D3D3D3; }
+    .card { background: #141414; border: 1px solid #222; }
+    .member-badge { color: #fff; font-weight:600; padding:4px 8px; border-radius: 6px; display:inline-block; }
+    .task-card { cursor: grab; }
+    .small-muted { color:#9aa4a6; font-size:0.85rem; }
+    .kanban-col { min-height: 120px; }
+    .wishlist-item-acquired { text-decoration: line-through; opacity: 0.7; }
+    @media (max-width: 767px) {
+      .sidebar { order: 2; }
+      .main { order: 1; }
+    }
+	/* ---- Text Color Fixes ---- */
+
+/* General light mode for dark theme */
+body, .card, .navbar, .modal-content {
+  color: #e6e6e6;
+}
+
+/* Global dark modals */
+.modal-content {
+  background-color: #141414 !important; /* dark card color */
+  color: #e6e6e6 !important; /* light text */
+  border: 1px solid #333 !important;
+}
+
+.modal-header, .modal-footer {
+  border-color: #333 !important;
+}
+
+.modal-content * {
+  color: inherit !important; /* ensures consistent light text */
+}
+
+/* Buttons and inputs keep contrast */
+.btn-outline-light {
+  color: #e6e6e6 !important;
+  border-color: #e6e6e6 !important;
+}
+.btn-outline-light:hover {
+  background: #e6e6e6 !important;
+  color: #000 !important;
+}
+
+
+.form-control:focus, .form-select:focus {
+  background-color: #1a1a1a;
+  color: #fff;
+  border-color: #f2c94c;
+  box-shadow: none;
+}
+
+/* White popups use black text for readability */
+.modal-content.bg-white, .modal-content[style*="background:white"], 
+.modal-content[style*="background-color:white"] {
+  color: #000 !important;
+}
+
+/* Bootstrap modal header and footer in white popups */
+.modal-content.bg-white .modal-header *,
+.modal-content.bg-white .modal-body *,
+.modal-content.bg-white .modal-footer * {
+  color: #000 !important;
+}
+
+/* Timeline enhancements */
+.timeline-toolbar { display:flex; gap:8px; align-items:center; }
+.timeline-wrapper { overflow-x:auto; overflow-y:visible; padding:8px 4px; -webkit-overflow-scrolling:touch; }
+.timeline-track {
+  position:relative;
+  min-width:600px;
+  height: 160px; /* base height, will grow with stacked rows */
+  border-radius:8px;
+  padding-top:36px; /* space for day headers */
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+}
+.timeline-days { display:flex; position:absolute; left:0; top:0; right:0; height:36px; z-index:5; }
+.timeline-day {
+  flex: 0 0 auto;
+  padding:6px 6px;
+  font-size:12px;
+  color:#9aa4a6;
+  text-align:center;
+  border-right:1px solid rgba(255,255,255,0.03);
+  min-width:40px;
+}
+.timeline-bar {
+  position:absolute;
+  height:28px;
+  border-radius:6px;
+  color:#000;
+  padding:4px 8px;
+  font-weight:600;
+  font-size:13px;
+  box-shadow:0 4px 8px rgba(0,0,0,0.35);
+  cursor:pointer;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.timeline-bar .assignees { display:inline-block; margin-left:6px; font-weight:700; font-size:11px; opacity:0.95; }
+.today-marker {
+  position:absolute;
+  top:36px;
+  bottom:8px;
+  width:2px;
+  background:rgba(242,201,76,0.95);
+  z-index:6;
+  box-shadow:0 0 8px rgba(242,201,76,0.25);
+}
+.timeline-empty { padding:10px; color:#9aa4a6; }
+@media (max-width:768px) {
+  .timeline-track { height: calc(28px + 34px * 4); } /* allow more vertical stacking on mobile visually */
+}
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark sticky-top">
+  <div class="container-fluid text-light">
+    <a class="navbar-brand" href="#">OSRS Group Ironman Planner</a>
+    <div>
+      <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#newTaskModal">+ Task</button>
+      <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#newGoalModal">+ Goal</button>
+      <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#newMemberModal">+ Member</button>
+      <button id="shareBtn" class="btn btn-warning btn-sm">Generate Share Link</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid p-3">
+  <div class="row g-3">
+    <!-- LEFT SIDEBAR -->
+    <div class="col-lg-3 sidebar">
+      <div class="card p-3 mb-3">
+        <h5>Members</h5>
+        <div id="membersList" class="mb-2"></div>
+        <div class="small-muted mb-2">Add members to assign tasks and track responsibilities.</div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#newMemberModal">Add Member</button>
+          <button id="exportJson" class="btn btn-sm btn-outline-light">Export JSON</button>
+          <label class="btn btn-sm btn-outline-light mb-0">
+            Import JSON <input id="importFile" type="file" accept="application/json" hidden>
+          </label>
+        </div>
+      </div>
+
+      <div class="card p-3 mb-3">
+        <h6 class="mb-2">Goals</h6>
+        <div id="goalsList"></div>
+        <div class="small-muted mt-2">Track target levels (e.g. "All: 99 Attack") and deadlines.</div>
+      </div>
+
+      <div class="card p-3 mb-3">
+        <h6 class="mb-2">Items / Wishlist</h6>
+        <div id="wishlistList" class="mb-2"></div>
+
+        <div class="input-group input-group-sm mb-2">
+          <input id="newItemName" class="form-control form-control-sm" placeholder="Item name (eg. Dragonfire shield)" />
+          <input id="newItemQty" class="form-control form-control-sm" placeholder="Qty" style="max-width:80px" />
+          <button id="addItemBtn" class="btn btn-sm btn-outline-light">Add</button>
+        </div>
+        <div class="small-muted">Add items your group wants to acquire. Mark acquired when you get them.</div>
+      </div>
+
+      <div class="card p-3 mb-3">
+        <h6 class="mb-2">Notes & Strategies</h6>
+        <textarea id="notesArea" rows="6" class="form-control mb-2" placeholder="Write strategies, progressions, meeting notes..."></textarea>
+        <div class="d-flex gap-2">
+          <button id="saveNotesBtn" class="btn btn-sm btn-warning">Save Notes</button>
+          <button id="clearNotesBtn" class="btn btn-sm btn-outline-light">Clear</button>
+        </div>
+        <div class="small-muted mt-2">Notes are saved locally and included in the share link / export.</div>
+      </div>
+
+      <div class="card p-3">
+        <h6>Progress</h6>
+        <canvas id="progressChart" height="150"></canvas>
+        <div class="small-muted mt-2">Kanban progress based on task status.</div>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="col-lg-9 main">
+      <div class="card p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <h5 class="mb-0">Task Board</h5>
+            <div class="small-muted">Drag tasks between columns to update status; tap card to edit details.</div>
+          </div>
+          <div>
+            <div class="input-group input-group-sm">
+              <select id="filterMember" class="form-select form-select-sm" aria-label="Filter">
+                <option value="">Filter: All members</option>
+              </select>
+              <select id="filterType" class="form-select form-select-sm">
+                <option value="">Filter: All types</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12 col-md-4">
+            <div class="card p-2 kanban-col" data-status="backlog">
+              <h6>Backlog</h6>
+              <div id="col-backlog" class="list-group list-group-flush"></div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="card p-2 kanban-col" data-status="inprogress">
+              <h6>In Progress</h6>
+              <div id="col-inprogress" class="list-group list-group-flush"></div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="card p-2 kanban-col" data-status="done">
+              <h6>Done</h6>
+              <div id="col-done" class="list-group list-group-flush"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+<div class="card p-3">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <h6 class="mb-0">Timeline (interactive)</h6>
+    <div class="timeline-toolbar">
+      <button id="zoomOut" class="btn btn-sm btn-outline-light" title="Zoom out">−</button>
+      <button id="zoomReset" class="btn btn-sm btn-outline-light" title="Fit">Fit</button>
+      <button id="zoomIn" class="btn btn-sm btn-outline-light" title="Zoom in">+</button>
+      <button id="centerToday" class="btn btn-sm btn-outline-light" title="Center today">Today</button>
+    </div>
+  </div>
+  <div id="timelineBox" class="timeline-wrapper" aria-live="polite">
+    <div id="timelineTrack" class="timeline-track" role="region" aria-label="Task timeline"></div>
+  </div>
+  <div class="small-muted mt-2">Each task with a due date shows here as a horizontal bar. Use the zoom controls or swipe horizontally on mobile.</div>
+</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<!-- New Member -->
+<div class="modal fade" id="newMemberModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="memberForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Member</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Name</label>
+        <input id="memberName" required class="form-control" />
+        <label class="form-label mt-2">Role / Type</label>
+        <input id="memberRole" class="form-control" placeholder="e.g., Tank, Skiller, Loot manager" />
+        <label class="form-label mt-2">Color</label>
+        <input id="memberColor" type="color" value="#f2c94c" class="form-control form-control-color" />
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-warning">Save Member</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Task -->
+<div class="modal fade" id="newTaskModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="taskForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">New Task</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Title</label>
+        <input id="taskTitle" required class="form-control" />
+        <label class="form-label mt-2">Description / Strategy</label>
+        <textarea id="taskDesc" class="form-control" rows="3" placeholder="Strategy notes, tips, steps"></textarea>
+        <div class="row g-2 mt-2">
+          <div class="col-6">
+            <label class="form-label">Type</label>
+            <input id="taskType" class="form-control" placeholder="e.g., Bossing, Skilling, Quest" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">Priority</label>
+            <select id="taskPriority" class="form-select">
+              <option value="low">Low</option>
+              <option value="med" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="form-label mt-2">Assign Members</label>
+        <select id="taskAssignees" class="form-select" multiple></select>
+
+        <div class="row g-2 mt-2">
+          <div class="col-6">
+            <label class="form-label">Due Date</label>
+            <input id="taskDue" type="date" class="form-control" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">Initial Status</label>
+            <select id="taskStatus" class="form-select">
+              <option value="backlog">Backlog</option>
+              <option value="inprogress">In Progress</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <input type="hidden" id="editingTaskId" value="">
+        <button type="submit" class="btn btn-warning">Save Task</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- New Goal -->
+<div class="modal fade" id="newGoalModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="goalForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">New Goal</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Goal Title</label>
+        <input id="goalTitle" required class="form-control" />
+        <label class="form-label mt-2">Target (e.g., All members reach 80 Strength)</label>
+        <input id="goalTarget" class="form-control" />
+        <label class="form-label mt-2">Deadline</label>
+        <input id="goalDeadline" type="date" class="form-control" />
+        <label class="form-label mt-2">Notes / Strategy</label>
+        <textarea id="goalNotes" class="form-control" rows="3"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-warning">Save Goal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Task Details modal (edit) -->
+<div class="modal fade" id="taskDetailsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content card">
+      <div class="modal-header">
+        <h5 class="modal-title" id="detailTitle">Task</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="detailBody"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="editTaskBtn" class="btn btn-outline-light">Edit</button>
+        <button id="deleteTaskBtn" class="btn btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+
+<script type="module">
+
+// On page load: if URL has a hash, load it
+window.addEventListener('load', () => {
+if (location.hash) {
+  try {
+    // decode URI first, then atob
+    const decoded = decodeURIComponent(location.hash.slice(1));
+    const hashState = JSON.parse(atob(decoded));
+    state = hashState;
+    saveLocal();   // ensure localStorage is updated
+  } catch(e) {
+    console.warn('Invalid share link hash', e);
+  }
+}
+  loadLocal();
+  renderMembers();
+  renderGoals();
+  renderWishlist();
+  renderNotes();
+  renderTasks();
+  makeSortable();
+});
+/* --------- State & helpers --------- */
+const STORAGE_KEY = "osrs_gim_planner_v1";
+
+let state = {
+  members: [],
+  tasks: [],
+  goals: [],
+  notes: "",         // notes & strategies
+  wishlist: []       // items to acquire [{id,name,qty,note,acquired}]
+};
+
+const uid = (prefix='id') => prefix + '-' + Math.random().toString(36).slice(2,9);
+
+/* ===== timeline config ===== */
+let timelinePixelsPerDay = 40; // default zoom (px/day)
+const timelineMinPx = 18;
+const timelineMaxPx = 140;
+
+/* helpers */
+function addDays(date, days){ const d=new Date(date); d.setDate(d.getDate()+days); return d; }
+function subDays(date, days){ return addDays(date, -days); }
+function dayDiff(a,b){ return Math.round((a - b) / (1000*60*60*24)); }
+function formatDayLabel(date){
+  const d = new Date(date);
+  // show day abbreviation + date (e.g., Mon 11/17) – concise for mobile
+  return d.toLocaleDateString(undefined, {weekday:'short', month:'numeric', day:'numeric'});
+}
+
+function saveLocal() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  updateChart();
+}
+
+function loadLocal() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try { state = JSON.parse(raw); } catch(e){ console.warn('invalid local state'); }
+  }
+  // ensure default fields exist
+  if (!Array.isArray(state.members)) state.members = [];
+  if (!Array.isArray(state.tasks)) state.tasks = [];
+  if (!Array.isArray(state.goals)) state.goals = [];
+  if (!Array.isArray(state.wishlist)) state.wishlist = [];
+  if (typeof state.notes !== 'string') state.notes = '';
+}
+
+/* --------- Initial render & utilities --------- */
+
+function findMember(id){ return state.members.find(m=>m.id===id); }
+function humanDate(d){ if(!d) return ''; return new Date(d).toLocaleDateString(); }
+
+function renderMembers() {
+  const el = document.getElementById('membersList');
+  el.innerHTML = '';
+  state.members.forEach(m=>{
+    const node = document.createElement('div');
+    node.className = 'mb-2';
+    node.innerHTML = `
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <span class="member-badge" style="background:${m.color}">${escapeHtml(m.name)}</span>
+          <div class="small-muted">${escapeHtml(m.role) || ''}</div>
+        </div>
+        <div>
+          <button class="btn btn-sm btn-outline-light me-1" onclick="editMember('${m.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="removeMember('${m.id}')">X</button>
+        </div>
+      </div>
+    `;
+    el.appendChild(node);
+  });
+  // update assignee select & filters
+  const sel = document.getElementById('taskAssignees');
+  sel.innerHTML = '';
+  state.members.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m.id; opt.textContent = m.name;
+    sel.appendChild(opt);
+  });
+
+  const filterMember = document.getElementById('filterMember');
+  const prev = filterMember.value;
+  filterMember.innerHTML = '<option value="">Filter: All members</option>';
+  state.members.forEach(m=>{
+    const o = document.createElement('option'); o.value = m.id; o.textContent = m.name;
+    filterMember.appendChild(o);
+  });
+  filterMember.value = prev || '';
+
+  saveLocal();
+}
+
+function renderGoals() {
+  const el = document.getElementById('goalsList');
+  el.innerHTML = '';
+  if (state.goals.length === 0) {
+    el.innerHTML = '<div class="small-muted">No goals yet — add a group goal to keep track of timelines.</div>';
+    return;
+  }
+  state.goals.forEach(g=>{
+    const container = document.createElement('div');
+    container.className = 'mb-2';
+    container.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div><strong>${escapeHtml(g.title)}</strong> <span class="small-muted">(${escapeHtml(g.target)||''})</span></div>
+          <div class="small-muted">${escapeHtml(g.notes) || ''}</div>
+          <div class="small-muted">Deadline: ${humanDate(g.deadline)}</div>
+        </div>
+        <div>
+          <button class="btn btn-sm btn-outline-light me-1" onclick="editGoal('${g.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteGoal('${g.id}')">X</button>
+        </div>
+      </div>
+    `;
+    el.appendChild(container);
+  });
+  saveLocal();
+}
+
+function renderWishlist() {
+  if (!Array.isArray(state.wishlist)) state.wishlist = [];  // <-- fix
+  const el = document.getElementById('wishlistList');
+  el.innerHTML = '';
+  if (state.wishlist.length === 0) {
+    el.innerHTML = '<div class="small-muted mb-2">No items yet — add gear and supplies your group is aiming for.</div>';
+    return;
+  }
+  state.wishlist.forEach(item=>{
+    const itemNode = document.createElement('div');
+    itemNode.className = 'd-flex align-items-start justify-content-between mb-2';
+    itemNode.innerHTML = `
+      <div>
+        <div class="${item.acquired ? 'wishlist-item-acquired' : ''}">
+          <strong>${escapeHtml(item.name)}</strong> ${item.qty ? '×' + escapeHtml(item.qty) : ''}
+        </div>
+        <div class="small-muted">${escapeHtml(item.note || '')}</div>
+      </div>
+      <div class="btn-group btn-group-sm">
+        <button class="btn btn-outline-light" onclick="toggleItemAcquired('${item.id}')">
+          ${item.acquired ? 'Unmark' : 'Acquired'}
+        </button>
+        <button class="btn btn-danger" onclick="deleteWishlistItem('${item.id}')">X</button>
+      </div>
+    `;
+    el.appendChild(itemNode);
+  });
+  saveLocal();
+}
+
+function renderNotes() {
+  const ta = document.getElementById('notesArea');
+  ta.value = state.notes || '';
+}
+
+/* --------- Tasks, Kanban & timeline (existing) --------- */
+function renderTasks() {
+  const statuses = ['backlog','inprogress','done'];
+  statuses.forEach(s=>{
+    document.getElementById('col-'+s).innerHTML = '';
+  });
+
+  // update type filter list
+  const types = Array.from(new Set(state.tasks.map(t=>t.type).filter(Boolean)));
+  const typeFilter = document.getElementById('filterType');
+  const prevType = typeFilter.value;
+  typeFilter.innerHTML = '<option value="">Filter: All types</option>';
+  types.forEach(t=>{ const o=document.createElement('option'); o.value=t; o.textContent=t; typeFilter.appendChild(o); });
+  typeFilter.value = prevType || '';
+
+  const memberFilterVal = document.getElementById('filterMember').value;
+  const typeFilterVal = document.getElementById('filterType').value;
+
+  state.tasks.forEach(task=>{
+    if (memberFilterVal && !task.assignees.includes(memberFilterVal)) return;
+    if (typeFilterVal && task.type !== typeFilterVal) return;
+
+    const card = document.createElement('div');
+    card.className = 'list-group-item mb-2 card task-card';
+    card.draggable = true;
+    card.dataset.id = task.id;
+    card.innerHTML = `
+      <div class="d-flex justify-content-between">
+        <div>
+          <strong>${escapeHtml(task.title)}</strong>
+          <div class="small-muted">${escapeHtml(task.type) || ''} • ${escapeHtml(task.priority) || ''}</div>
+        </div>
+        <div class="text-end">
+          <div class="small-muted">${task.due ? humanDate(task.due) : ''}</div>
+          <div class="small-muted">${task.assignees.map(a=>{
+            const m = findMember(a); return m ? `<span style="background:${m.color};color:#000;padding:2px 6px;border-radius:4px;margin-left:4px;font-weight:600">${escapeHtml(m.name)}</span>` : '';
+          }).join('')}</div>
+        </div>
+      </div>
+    `;
+    card.addEventListener('click', (e)=>{ e.stopPropagation(); openTaskDetail(task.id); });
+    document.getElementById('col-'+task.status).appendChild(card);
+  });
+
+  renderTimeline();
+  saveLocal();
+  updateChart();
+}
+
+/*-------- Sortable / drag-drop ---------*/
+function makeSortable() {
+  ['col-backlog','col-inprogress','col-done'].forEach((id)=>{
+    new Sortable(document.getElementById(id), {
+      group: 'kanban',
+      animation: 150,
+      onAdd: function (evt) {
+        const taskId = evt.item.dataset.id;
+        const newStatus = evt.to.parentElement.getAttribute('data-status') || evt.to.closest('[data-status]')?.getAttribute('data-status');
+        const task = state.tasks.find(t=>t.id===taskId);
+        if (task && newStatus) {
+          task.status = newStatus;
+          saveLocal(); renderTasks();
+        }
+      }
+    });
+  });
+}
+
+/* --------- Timeline (simple) --------- */
+/* new renderTimeline */
+function renderTimeline() {
+  const area = document.getElementById('timelineBox');
+  const track = document.getElementById('timelineTrack');
+  track.innerHTML = '';
+
+  // collect tasks with due dates
+  const dated = state.tasks.filter(t => t.due).sort((a,b) => new Date(a.due) - new Date(b.due));
+  if (!dated.length) {
+    track.innerHTML = '<div class="timeline-empty">No dated tasks. Set due dates on tasks to populate timeline.</div>';
+    return;
+  }
+
+  // compute min/max with padding so bars don't sit flush to edges
+  const dates = dated.map(t => new Date(t.due));
+  let min = new Date(Math.min(...dates.map(d=>d.getTime())));
+  let max = new Date(Math.max(...dates.map(d=>d.getTime())));
+  // add some padding days before/after
+  const padDays = Math.max(3, Math.floor((dayDiff(max, min)) * 0.05)); // ~5% padding, at least 3 days
+  min = subDays(min, padDays);
+  max = addDays(max, padDays);
+
+  const spanDays = Math.max(1, dayDiff(max, min) + 1);
+
+  // calculate track width
+  const pxPerDay = Math.max(timelineMinPx, Math.min(timelineMaxPx, timelinePixelsPerDay));
+  const trackWidth = Math.max(600, Math.ceil(spanDays * pxPerDay));
+  track.style.width = trackWidth + 'px';
+
+  // render day headers / vertical grid
+  const daysRow = document.createElement('div');
+  daysRow.className = 'timeline-days';
+  for (let i = 0; i < spanDays; i++){
+    const day = addDays(min, i);
+    const dayEl = document.createElement('div');
+    dayEl.className = 'timeline-day';
+    dayEl.style.minWidth = pxPerDay + 'px';
+    dayEl.style.flex = `0 0 ${pxPerDay}px`;
+    dayEl.textContent = formatDayLabel(day);
+    // subtle highlight for weekends (optional)
+    const wd = day.getDay();
+    if (wd === 0 || wd === 6) dayEl.style.opacity = '0.85';
+    daysRow.appendChild(dayEl);
+  }
+  track.appendChild(daysRow);
+
+  // group tasks by date to stack multiples vertically
+  const byDateCounter = {}; // "YYYY-MM-DD" -> count
+  function dateKey(d){ const dd = new Date(d); return dd.toISOString().slice(0,10); }
+
+  // set base vertical spacing and row height per bar
+  const rowHeight = 34; // bar + gap
+  const baseTop = 44; // space below days
+
+  // ensure track height can grow to fit stacked rows
+  const maxStackForAnyDay = dated.reduce((acc, t) => {
+    const k = dateKey(t.due);
+    byDateCounter[k] = (byDateCounter[k] || 0) + 1;
+    return Math.max(acc, byDateCounter[k]);
+  }, 0);
+  // reset byDateCounter for placement pass
+  Object.keys(byDateCounter).forEach(k => byDateCounter[k] = 0);
+
+  const requiredHeight = Math.max(120, baseTop + (maxStackForAnyDay+1) * rowHeight + 24);
+  track.style.height = requiredHeight + 'px';
+
+  // re-render placement, one pass
+  dated.forEach((t) => {
+    const due = new Date(t.due);
+    const leftPx = Math.round(dayDiff(due, min) * pxPerDay);
+    // stack index:
+    const k = dateKey(t.due);
+    const stackIndex = byDateCounter[k] || 0;
+    byDateCounter[k] = stackIndex + 1;
+
+    const top = baseTop + stackIndex * rowHeight;
+    const barWidth = Math.max(44, Math.round(pxPerDay * 0.5)); // bar length (you can adjust)
+    const color = (t.priority === 'high') ? '#e74c3c' : '#f2c94c';
+
+    const bar = document.createElement('div');
+    bar.className = 'timeline-bar';
+    bar.style.left = (leftPx) + 'px';
+    bar.style.top = top + 'px';
+    bar.style.width = barWidth + 'px';
+    bar.style.background = color;
+    bar.dataset.taskId = t.id;
+    // label inside bar: title (trim if long)
+    const assigneesHtml = t.assignees && t.assignees.length
+      ? ' <span class="assignees">(' + t.assignees.map(a=>escapeHtml(findMember(a)?.name||'')).join(',') + ')</span>'
+      : '';
+    bar.innerHTML = `<span title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</span>${assigneesHtml}`;
+    bar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openTaskDetail(bar.dataset.taskId);
+    });
+    track.appendChild(bar);
+  });
+
+  // today marker
+  const today = new Date();
+  if (today >= min && today <= max) {
+    const leftToday = Math.round(dayDiff(today, min) * pxPerDay);
+    const marker = document.createElement('div');
+    marker.className = 'today-marker';
+    marker.style.left = leftToday + 'px';
+    marker.title = 'Today';
+    track.appendChild(marker);
+
+    // little label
+    const lbl = document.createElement('div');
+    lbl.style.position = 'absolute';
+    lbl.style.left = (leftToday + 6) + 'px';
+    lbl.style.top = '6px';
+    lbl.style.fontSize = '11px';
+    lbl.style.color = '#f2c94c';
+    lbl.style.fontWeight = '700';
+    lbl.textContent = 'Today';
+    track.appendChild(lbl);
+  }
+
+  // make it scroll to show upcoming tasks by default (focus near today or first date)
+  // small timeout to allow DOM to finish layout
+  setTimeout(()=> {
+    // prefer centering today if in range, otherwise center earliest due
+    const preferDate = (today >= min && today <= max) ? today : new Date(dated[0].due);
+    const centerLeft = Math.max(0, Math.round(dayDiff(preferDate, min) * pxPerDay) - (area.clientWidth/2) + 80);
+    area.scrollLeft = centerLeft;
+  }, 60);
+}
+
+/* ===== zoom & controls ===== */
+document.getElementById('zoomIn').addEventListener('click', ()=> {
+  timelinePixelsPerDay = Math.min(timelineMaxPx, timelinePixelsPerDay + 12);
+  renderTimeline();
+});
+document.getElementById('zoomOut').addEventListener('click', ()=> {
+  timelinePixelsPerDay = Math.max(timelineMinPx, timelinePixelsPerDay - 12);
+  renderTimeline();
+});
+document.getElementById('zoomReset').addEventListener('click', ()=> {
+  timelinePixelsPerDay = 40;
+  renderTimeline();
+});
+document.getElementById('centerToday').addEventListener('click', ()=> {
+  // center to today if rendered
+  const area = document.getElementById('timelineBox');
+  const track = document.getElementById('timelineTrack');
+  const minDayEl = track.querySelector('.timeline-day');
+  // simply call renderTimeline to ensure up-to-date then attempt to scroll to today
+  renderTimeline();
+  setTimeout(()=> {
+    const today = new Date();
+    // compute min date based on first .timeline-day text by parsing (recompute better):
+    // easiest: find the left position of today's marker and center on it
+    const marker = track.querySelector('.today-marker');
+    if (marker) {
+      const left = parseInt(marker.style.left || '0', 10);
+      area.scrollLeft = Math.max(0, left - area.clientWidth/2 + 40);
+    }
+  }, 80);
+});
+
+/* --------- Chart --------- */
+let progressChart = null;
+function updateChart(){
+  const counts = { backlog:0, inprogress:0, done:0 };
+  state.tasks.forEach(t=> counts[t.status] = (counts[t.status]||0)+1);
+  const ctx = document.getElementById('progressChart').getContext('2d');
+  if (!progressChart) {
+    progressChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Backlog','In Progress','Done'],
+        datasets: [{ data: [counts.backlog, counts.inprogress, counts.done] }]
+      },
+      options: {
+        plugins: { legend: { labels: { color: '#ddd' } } }
+      }
+    });
+  } else {
+    progressChart.data.datasets[0].data = [counts.backlog, counts.inprogress, counts.done];
+    progressChart.update();
+  }
+}
+
+/* --------- Task detail / edit / delete --------- */
+function openTaskDetail(id) {
+  const task = state.tasks.find(t=>t.id===id);
+  if(!task) return;
+  document.getElementById('detailTitle').textContent = task.title;
+  const ass = task.assignees.map(a=>findMember(a)?.name||'').join(', ');
+  document.getElementById('detailBody').innerHTML = `
+    <p><strong>Type:</strong> ${escapeHtml(task.type)||''} &nbsp; <strong>Priority:</strong> ${escapeHtml(task.priority)||''}</p>
+    <p><strong>Assignees:</strong> ${escapeHtml(ass)}</p>
+    <p><strong>Due:</strong> ${humanDate(task.due)}</p>
+    <p>${escapeHtml(task.desc) || ''}</p>
+    <p class="small-muted">Created: ${new Date(task.created).toLocaleString()}</p>
+  `;
+  const modal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
+  modal.show();
+
+  document.getElementById('editTaskBtn').onclick = ()=>{ modal.hide(); openEditTask(task.id); };
+  document.getElementById('deleteTaskBtn').onclick = ()=>{ if(confirm('Delete task?')) { state.tasks = state.tasks.filter(t=>t.id!==task.id); modal.hide(); renderTasks(); } };
+}
+
+function openEditTask(id) {
+  const t = state.tasks.find(x=>x.id===id);
+  if(!t) return;
+  document.getElementById('editingTaskId').value = t.id;
+  document.getElementById('taskTitle').value = t.title;
+  document.getElementById('taskDesc').value = t.desc;
+  document.getElementById('taskType').value = t.type;
+  document.getElementById('taskPriority').value = t.priority;
+  document.getElementById('taskDue').value = t.due ? t.due.split('T')[0] : '';
+  document.getElementById('taskStatus').value = t.status;
+  const sel = document.getElementById('taskAssignees');
+  for (let i=0;i<sel.options.length;i++) sel.options[i].selected = t.assignees.includes(sel.options[i].value);
+  new bootstrap.Modal(document.getElementById('newTaskModal')).show();
+}
+
+/* --------- Member actions --------- */
+function editMember(id) {
+  const m = state.members.find(x=>x.id===id);
+  if(!m) return;
+  document.getElementById('memberName').value = m.name;
+  document.getElementById('memberRole').value = m.role;
+  document.getElementById('memberColor').value = m.color;
+  document.getElementById('memberForm').dataset.editing = id;
+  new bootstrap.Modal(document.getElementById('newMemberModal')).show();
+}
+
+function removeMember(id) {
+  if (!confirm('Remove member? This will unassign them from tasks.')) return;
+  state.members = state.members.filter(m=>m.id!==id);
+  state.tasks.forEach(t=> t.assignees = t.assignees.filter(a=>a!==id));
+  renderMembers(); renderTasks();
+}
+
+/* --------- Goals actions --------- */
+function editGoal(id) {
+  const g = state.goals.find(x=>x.id===id);
+  if(!g) return;
+  document.getElementById('goalTitle').value = g.title;
+  document.getElementById('goalTarget').value = g.target;
+  document.getElementById('goalDeadline').value = g.deadline;
+  document.getElementById('goalNotes').value = g.notes;
+  document.getElementById('goalForm').dataset.editing = id;
+  new bootstrap.Modal(document.getElementById('newGoalModal')).show();
+}
+function deleteGoal(id) {
+  if (!confirm('Delete goal?')) return;
+  state.goals = state.goals.filter(g=>g.id!==id);
+  renderGoals();
+}
+
+/* --------- Forms handling --------- */
+document.getElementById('memberForm').addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const name = document.getElementById('memberName').value.trim();
+  const role = document.getElementById('memberRole').value.trim();
+  const color = document.getElementById('memberColor').value;
+  const editing = e.target.dataset.editing;
+  if (editing) {
+    const m = state.members.find(x=>x.id===editing);
+    if(m){ m.name=name; m.role=role; m.color=color; delete e.target.dataset.editing; }
+  } else {
+    state.members.push({ id: uid('m'), name, role, color });
+  }
+  e.target.reset();
+  new bootstrap.Modal(document.getElementById('newMemberModal')).hide();
+  renderMembers();
+});
+
+document.getElementById('taskForm').addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const id = document.getElementById('editingTaskId').value;
+  const title = document.getElementById('taskTitle').value.trim();
+  const desc = document.getElementById('taskDesc').value;
+  const type = document.getElementById('taskType').value.trim();
+  const priority = document.getElementById('taskPriority').value;
+  const status = document.getElementById('taskStatus').value;
+  const due = document.getElementById('taskDue').value || null;
+  const assignees = Array.from(document.getElementById('taskAssignees').selectedOptions).map(o=>o.value);
+  if (id) {
+    const t = state.tasks.find(x=>x.id===id);
+    if(t) { Object.assign(t, { title, desc, type, priority, status, due, assignees }); }
+    document.getElementById('editingTaskId').value = '';
+  } else {
+    state.tasks.push({
+      id: uid('t'), title, desc, type, priority, status, due,
+      assignees, created: new Date().toISOString()
+    });
+  }
+  e.target.reset();
+  new bootstrap.Modal(document.getElementById('newTaskModal')).hide();
+  renderTasks();
+});
+
+document.getElementById('goalForm').addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const editing = e.target.dataset.editing;
+  const title = document.getElementById('goalTitle').value.trim();
+  const target = document.getElementById('goalTarget').value;
+  const deadline = document.getElementById('goalDeadline').value || null;
+  const notes = document.getElementById('goalNotes').value;
+  if(editing) {
+    const g = state.goals.find(x=>x.id===editing);
+    if(g) { Object.assign(g,{title,target,deadline,notes}); delete e.target.dataset.editing; }
+  } else {
+    state.goals.push({ id: uid('g'), title, target, deadline, notes });
+  }
+  e.target.reset();
+  new bootstrap.Modal(document.getElementById('newGoalModal')).hide();
+  renderGoals();
+});
+
+/* --------- Wishlist actions --------- */
+document.getElementById('addItemBtn').addEventListener('click', addWishlistItem);
+document.getElementById('newItemName').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); addWishlistItem(); } });
+
+function addWishlistItem() {
+  const name = document.getElementById('newItemName').value.trim();
+  const qty = document.getElementById('newItemQty').value.trim();
+  if (!name) return;
+  state.wishlist.push({ id: uid('w'), name, qty: qty || '', note: '', acquired: false });
+  document.getElementById('newItemName').value = '';
+  document.getElementById('newItemQty').value = '';
+  renderWishlist();
+}
+
+function toggleItemAcquired(id) {
+  const it = state.wishlist.find(x=>x.id===id);
+  if (!it) return;
+  it.acquired = !it.acquired;
+  renderWishlist();
+}
+
+function deleteWishlistItem(id) {
+  if (!confirm('Delete item?')) return;
+  state.wishlist = state.wishlist.filter(x=>x.id!==id);
+  renderWishlist();
+}
+
+/* --------- Notes actions --------- */
+document.getElementById('saveNotesBtn').addEventListener('click', ()=>{
+  state.notes = document.getElementById('notesArea').value;
+  saveLocal();
+  alert('Notes saved.');
+});
+document.getElementById('clearNotesBtn').addEventListener('click', ()=>{
+  if (!confirm('Clear notes?')) return;
+  state.notes = '';
+  renderNotes();
+  saveLocal();
+});
+
+/* --------- Export / import / share link --------- */
+document.getElementById('exportJson').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'osrs_gim_planner.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('importFile').addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const parsed = JSON.parse(r.result);
+      if (confirm('Replace current board with imported data?')) {
+        state = parsed;
+        saveLocal(); renderMembers(); renderTasks(); renderGoals(); renderWishlist(); renderNotes();
+        alert('Imported.');
+      }
+    } catch(e){ alert('Invalid JSON'); }
+  };
+  r.readAsText(f);
+});
+
+document.getElementById('shareBtn').addEventListener('click', async () => {
+  try {
+    // Convert state to JSON string and encode it
+    const jsonStr = encodeURIComponent(JSON.stringify(state));
+
+    const resp = await fetch('/api/shorten', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: jsonStr }) // store directly
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      alert('Error creating short link: ' + txt);
+      return;
+    }
+
+    const { id } = await resp.json();
+    const shortUrl = `${location.origin}/s/${id}`;
+
+    try {
+      await navigator.clipboard.writeText(shortUrl);
+      alert('Short share link copied to clipboard:\n' + shortUrl);
+    } catch {
+      prompt('Copy this short link:', shortUrl);
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Failed to generate short link');
+  }
+});
+
+/* Auto-load from URL hash if present */
+// *** NEW FUNCTION TO LOAD FROM HASH ***
+function loadFromHash() {
+  if (!location.hash) return false; // No hash, do nothing
+
+  let hashData = location.hash.slice(1); // Get 'data=%7B...%7D'
+  
+  try {
+    // Check if it starts with "data=" and remove it
+    if (hashData.startsWith('data=')) {
+      hashData = hashData.substring(5); // Get just '%7B...%7D'
+    }
+
+    // Now, decode the URI-encoded JSON
+    const jsonString = decodeURIComponent(hashData);
+    
+    // Parse the JSON
+    const hashState = JSON.parse(jsonString);
+    
+    // Overwrite the current state with the hash state
+    state = hashState; 
+    
+    saveLocal(); // Sync this new state to local storage
+    console.log("Successfully loaded state from URL hash:", state);
+    return true; // Signal success
+    
+  } catch(e) {
+    console.warn('Invalid share link hash. Could not parse.', e);
+    return false; // Signal failure
+  }
+}
+/* --------- Filters --------- */
+document.getElementById('filterMember').addEventListener('change', ()=>{ renderTasks(); });
+document.getElementById('filterType').addEventListener('change', ()=>{ renderTasks(); });
+
+/* --------- InitializeIfEmpty (INTENTIONALLY EMPTY) --------- */
+function initializeIfEmpty() {
+  // intentionally left blank — no sample data
+  return;
+}
+
+/* --------- Startup --------- */
+(function startup(){
+  const loadedFromHash = loadFromHash();
+  if (!loadedFromHash) {
+    loadLocal();
+    initializeIfEmpty();
+  }
+  renderMembers();
+  renderGoals();
+  renderTasks();
+  renderWishlist();
+  renderNotes();
+  makeSortable();
+  updateChart();
+})();
+
+/* --------- Utilities --------- */
+function escapeHtml(unsafe) {
+  if (!unsafe && unsafe !== 0) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/* Expose a few functions to window for inline handlers */
+window.editMember = editMember;
+window.removeMember = removeMember;
+window.editGoal = editGoal;
+window.deleteGoal = deleteGoal;
+window.openEditTask = openEditTask;
+window.openTaskDetail = openTaskDetail;
+window.toggleItemAcquired = toggleItemAcquired;
+window.deleteWishlistItem = deleteWishlistItem;
+
+</script>
+<script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="attackishere" data-color="#000000" data-emoji=""  data-font="Cookie" data-text="Buy me a coffee" data-outline-color="#ffffff" data-font-color="#ffffff" data-coffee-color="#FFDD00" ></script>
+</body>
+</html>
